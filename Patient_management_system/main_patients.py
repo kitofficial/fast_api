@@ -2,9 +2,30 @@
 # To understand a simple hello world application using FastAPI
 
 from fastapi import FastAPI , Path, HTTPException, Query
+from pydantic import BaseModel, Field, computed_field
+from typing import Annotated, Literal
 import json
 
 app = FastAPI()
+
+class Patient(BaseModel):  #defining a Pydantic model for patient data validation
+# we will calculte bmi on the basis of height and weight
+#we will giver verdict on the basis of bmi
+# will put condition based on age 
+
+    id: Annotated[str: Field(..., description="Unique identifier for the patient", example="P001")]
+    name: Annotated[str: Field(..., description="Full name of the patient", example="John Doe")]
+    city: Annotated[str: Field(..., description="City of residence", example="New York")]
+    age: Annotated[int : Field(..., description="Age of the patient in years", example=30,gt=0,lt=120)]
+    gender: Annotated[Literal['male', 'female', 'other']: Field(..., description="Gender of the patient", example="male")]   
+    height: Annotated[float: Field(..., description="Height of the patient in mtrs", example=175.5,gt=0)]    
+    weight: Annotated[float: Field(..., description="Weight of the patient in kilograms", example=70.2,gt=0)]
+    bmi: 
+    
+
+  
+
+
 
 def load_data(): #function to load patient data from a JSON file
     with open("./patients.json", "r") as file:
