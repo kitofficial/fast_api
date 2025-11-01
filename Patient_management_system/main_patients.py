@@ -2,8 +2,11 @@
 # To understand a simple hello world application using FastAPI
 
 from fastapi import FastAPI , Path, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, computed_field
-from typing import Annotated, Literal
+from typing_extensions import Annotated
+from typing import Literal
+
 import json
 
 app = FastAPI()
@@ -13,15 +16,32 @@ class Patient(BaseModel):  #defining a Pydantic model for patient data validatio
 #we will giver verdict on the basis of bmi
 # will put condition based on age 
 
-    id: Annotated[str: Field(..., description="Unique identifier for the patient", example="P001")]
-    name: Annotated[str: Field(..., description="Full name of the patient", example="John Doe")]
-    city: Annotated[str: Field(..., description="City of residence", example="New York")]
-    age: Annotated[int : Field(..., description="Age of the patient in years", example=30,gt=0,lt=120)]
-    gender: Annotated[Literal['male', 'female', 'other']: Field(..., description="Gender of the patient", example="male")]   
-    height: Annotated[float: Field(..., description="Height of the patient in mtrs", example=175.5,gt=0)]    
-    weight: Annotated[float: Field(..., description="Weight of the patient in kilograms", example=70.2,gt=0)]
-    bmi: 
+    id: Annotated[str, Field(..., description='ID of the patient', examples=['P001'])]
+    name: Annotated[str, Field(..., description='Name of the patient')]
+    city: Annotated[str, Field(..., description='City where the patient is living')]
+    age: Annotated[int, Field(..., gt=0, lt=120, description='Age of the patient')]
+    gender: Annotated[Literal['male', 'female', 'others'], Field(..., description='Gender of the patient')]
+    height: Annotated[float, Field(..., gt=0, description='Height of the patient in mtrs')]
+    weight: Annotated[float, Field(..., gt=0, description='Weight of the patient in kgs')]
+
+    @computed_field #In pydantic, the computed_field decorator is used to define a field that is computed based on other fields in the model.
+    @property  #property decorator is used to define a method as a property, allowing it to be accessed like an attribute.
+    def bmi(self) -> float:
+        return round(self.weight / (self.height ** 2), 2)   
     
+    @computed_field
+    @property   
+    def verdict(self) -> str:  # To give health verdict based on BMI, it will trigger bmi and give verdict
+        if self.bmi < 18.5:
+            return "Underweight"
+        elif 18.5 <= self.bmi < 24.9:
+            return "Normal weight"
+        elif 25 <= self.bmi < 29.9:
+            return "Overweight"
+        else:
+            return "Obesity"
+        
+
 
   
 
@@ -31,6 +51,11 @@ def load_data(): #function to load patient data from a JSON file
     with open("./patients.json", "r") as file:
         data = json.load(file)
         return data
+    
+def save_data(data):                                     #model_dump() method is used to convert the Pydantic model instance into a dictionary representation.
+    with open("./patients.json", "w") as file:
+        json.dump(data, file, indent=4)  #write the updated patient data back to the JSON file
+    return {"message": "Patient record created successfully."}  #return a success message   
     
 
 #define a root endpoint
@@ -84,6 +109,24 @@ def sort_patients(sort_by: str = Query(..., description='Sort on the basis of he
     sorted_data = sorted(data.values(), key=lambda x: x.get(sort_by, 0), reverse=sort_order)
 
     return sorted_data
+
+@app.post('/create')
+def create_patient(patient: Patient):  #endpoint to create a new patient record, accepting a Patient model as input
+                                       #The patient parameter variable will check the incoming data against the Patient model for validation.
+
+    # In this function the client didn't gave the bmi and verdict still we are not worried as both are computed fields so it will be calculated automatically.
+    data = load_data()  #load existing patient data from the JSON file
+    if patient.id in data: #check if the patient ID already exists in the data
+        raise HTTPException(status_code=400, detail="Patient with this ID already exists.")  #return a 400 HTTP exception if the patient ID already exists
+    
+    data[patient.id] = patient.model_dump(exclude=['id'])  #add the new patient record to the existing data
+    
+    
+    save_data(data)  #save the updated patient data back to the JSON file
+    return JSONResponse(status_code=201, content={"message": "Patient record created successfully."})  #return a success message with a 201 status code
+
+
+
 
     
 
